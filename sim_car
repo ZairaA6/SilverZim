@@ -1,0 +1,122 @@
+import pygame, sys, math, neat, random
+
+class Car():
+    def  __init__(self, circuit):
+        # Load Car Sprite and Rotate
+        random_car = random.choice(cars)
+
+
+        self.sim_car_image = pygame.image.load(random_car).convert() 
+        self.sim_car_image = pygame.transform.scale(self.sim_car_image, (CAR_WIDTH, CAR_HEIGHT))
+        self.rotated_sim_car = self.sim_car_image 
+
+        self.sim_position = list(starting_coords[circuit]) # Starting Position depending on circuit
+        self.sim_angle = 0
+        self.sim_speed = 0
+
+        self.sim_speed_set = False # Flag For Default Speed Later on
+
+        self.sim_center = [self.sim_position[0] + CAR_WIDTH / 2, self.sim_position[1] + CAR_HEIGHT / 2] 
+
+        self.radars = [] # List For Sensors / Radars
+
+        self.alive = True # Boolean To Check If Car is Crashed
+
+        self.sim_distance = 0 # Distance Driven
+        self.sim_time = 0 # Time Passed
+
+    def draw(self, SCREEN):
+        SCREEN.blit(self.rotated_sim_car, self.sim_position)
+        # sensors can be added here
+    
+    def check_collision(self, game_map): 
+        self.alive = True
+        for point in self.corners:
+            #if any corner touches the border colour, there is a crash
+            if game_map.get_at((int(point[0]), int(point[1]))) == BORDER_COLOR:
+                self.alive = False
+                break 
+    
+    def check_radar(self, degree, game_map): # check 'degree' parameter, 24/01
+        length = 0
+        simX = int(self.sim_center[0] + math.cos(math.radians(360 - (self.sim_angle + degree))) * length)
+        simY = int(self.sim_center[1] + math.sin(math.radians(360 - (self.sim_angle + degree))) * length)
+        
+        # this while loop makes the sim car move forward
+        while not (game_map.get_at ((simX,simY)) == BORDER_COLOR or game_map.get_at ((simX,simY)) == (127,127,127,255)) and length < 300: 
+            length += 1
+            simX = int(self.sim_center[0] + math.cos(math.radians(360 - (self.sim_angle + degree))) * length)
+            simY = int(self.sim_center[1] + math.sin(math.radians(360 - (self.sim_angle + degree))) * length)
+
+        # calculate distance to border, can append the radar
+        dist_to_border = int(math.sqrt((simX - self.sim_center[0])** 2 + (simY - self.sim_center[1])** 2))
+        self.radars.append([(simX, simY), dist_to_border])
+
+    def update(self, game_map):
+        # sets speed to 20 for first time for sim car
+        # only when having 4 output nodes with speed up and down
+        if not self.sim_speed_set:
+            self.sim_speed = 20
+            self.sim_speed_set = True
+        
+        # rotate sprite !! , move into x direction, doesnt let sim car get closer than 20px to the Edge
+        self.rotated_sim_car = self.rotate_center(self.sim_car_image, self.sim_angle)
+        self.sim_position[0] += math.cos(math.radians(360 - self.sim_angle)) * self.sim_speed
+        self.sim_position[0] = max(self.sim_position[0], 20)
+        self.sim_position[0] = min(self.sim_position[0], SCREEN_WIDTH - 120)
+
+        # increase distance and time
+        self.sim_distance += self.sim_speed
+        self.sim_time += 1
+
+        # same for move into y direction
+        self.sim_position[1] += math.sin(math.radians(360 - self.sim_angle)) * self.sim_speed
+        self.sim_position[1] = max(self.sim_position[1], 20)
+        self.sim_position[1] = min(self.sim_position[1], SCREEN_WIDTH - 120)
+
+        # calculate new center
+        self.sim_center = [int(self.sim_position[0]) + CAR_WIDTH / 2, int(self.sim_position[1]) + CAR_HEIGHT / 2 ]
+
+        # calculate corners
+        # length is half the side
+        length = 0.5 * CAR_WIDTH # 50 is car size
+        left_top = [self.sim_center[0] + math.cos(math.radians(360-(self.sim_angle + 30))) * length, self.sim_center[1] + math.sin(math.radians(360-(self.sim_angle + 30))) * length]
+        right_top = [self.sim_center[0] + math.cos(math.radians(360-(self.sim_angle + 150))) * length, self.sim_center[1] + math.sin(math.radians(360-(self.sim_angle + 150))) * length]
+        left_bottom = [self.sim_center[0] + math.cos(math.radians(360-(self.sim_angle + 210))) * length, self.sim_center[1] + math.sin(math.radians(360-(self.sim_angle + 210))) * length]
+        right_bottom = [self.sim_center[0] + math.cos(math.radians(360-(self.sim_angle + 330))) * length, self.sim_center[1] + math.sin(math.radians(360-(self.sim_angle + 330))) * length]
+        self.corners = [left_top, right_top, left_bottom, right_bottom]
+
+        # check collisions and clear radars
+        self.check_collision(game_map)
+        self.radars.clear()
+
+        # from -90 to 120 with 45o steps , check radar
+        for d in range(-90, 120, 45):
+            self.check_radar(d, game_map)
+    
+    def get_data(self):
+        # get distances to border
+        radars = self.radars
+        return_values = [0,0,0,0,0]
+        for i, radar in enumerate(radars):
+            return_values[i] = int(radar[1] /30)
+        
+        return return_values
+    
+    def is_alive(self):
+        # checks if alive
+        return self.alive
+    
+    def get_reward(self):
+        # ai!
+        # calculate reward, return self.distance /50
+        return self.sim_distance / (CAR_WIDTH /2)
+    
+    def rotate_center(self, image, sim_angle):
+        # rotate rectangle
+        rectangle = image.get_rect()
+        rotated_image = pygame.transform.rotate(image,sim_angle)
+        rotated_rectangle = rectangle.copy()
+        rotated_rectangle.center = rotated_image.get_rect().center
+        rotated_image = rotated_image.subsurface(rotated_rectangle).copy()
+        return rotated_image
