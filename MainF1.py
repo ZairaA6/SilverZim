@@ -2,8 +2,8 @@ import pygame, sys, math, neat, random, json
 from button import Button
 
 # data structures
-maps = {"Silverstone":"silverstone_map.png", "Monaco":"monaco_map.png", "RedBullRing":"redbullring_map.png", "Suzuka":"suzuka_map.png","Tutorial1":"tutorial_one_map.png", 
-        "Tutorial2":"tutorial_two_map.png", "Tutorial3":"tutorial_three_map.png"}
+maps = {"Silverstone":"assets/silverstone_map.png", "Monaco":"assets/monaco_map.png", "RedBullRing":"assets/redbullring_map.png", "Suzuka":"assets/suzuka_map.png","Tutorial1":"assets/tutorial_one_map.png", 
+        "Tutorial2":"assets/tutorial_two_map.png", "Tutorial3":"assets/tutorial_three_map.png"}
 starting_coords = {"Silverstone": (355,90),"Monaco":(107,207),"RedBullRing":(716,332), "Tutorial1":(372,122), "Tutorial2":(372,122), "Tutorial3":(372,122)}
 finish_line_coords = {"Silverstone": (310,50),"Monaco":(102,293),"RedBullRing":(662,381), "Tutorial3": (250,100)}
 
@@ -19,7 +19,7 @@ steer_text = {"Silverstone":[(800,600),(840,575),(880,600),(840,630)], "Monaco":
 point_allocation = {"1": 25,"2":18,"3": 15,"4":12,"5":10,"6":8,"7":6,"8":4,"9":2,"10":1}
 player_names = ["formula_one_pro", "ai_24","silverZim11","simulated_player22","hamilton_8","sebastian_vettel","lewis_hamilton","leclerc_ai_16","charles_leclerc","lando_norris","vertappen_ai",
                 "8x_world_champ", "michael_shumacher", "artyon_senna","senna_ai", "susie_wolff", "martin_brundle","jenson_button","natalie_pinkham"]
-coloured_cars = ['car1.png', 'car2.png','car3.png','car4.png','car5.png','car6.png']
+coloured_cars = ["assets/car1.png", "assets/car2.png","assets/car3.png","assets/car4.png","assets/car5.png","assets/car6.png"]
 
 pygame.init()
 pygame.font.init()
@@ -28,20 +28,20 @@ pygame.font.init()
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 700
 SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT),  pygame.RESIZABLE)
-BG = pygame.image.load("final_background.png")
-OPTIONS = pygame.image.load("info_screen.png")  # info screen
-STATSBG = pygame.image.load("stats_screen.png")    # stats background
-MAPS_SELECTION = pygame.image.load("maps_screen.png")
-PITSTOP_screen = pygame.image.load("PITSTOP_GUI.png")
-RESULTS_SCREEN = pygame.image.load("results_screen.png")
-T3_intro = pygame.image.load("tutorial_3.0.png")
+BG = pygame.image.load("assets/final_background.png")
+OPTIONS = pygame.image.load("assets/info_screen.png")  # info screen
+STATSBG = pygame.image.load("assets/stats_screen.png")    # stats background
+MAPS_SELECTION = pygame.image.load("assets/maps_screen.png")
+PITSTOP_screen = pygame.image.load("assets/PITSTOP_GUI.png")
+RESULTS_SCREEN = pygame.image.load("assets/results_screen.png")
+T3_intro = pygame.image.load("assets/tutorial_3.0.png")
 T3_intro = pygame.transform.scale(T3_intro,(200, 350))
-T3_results = pygame.image.load("tutorial_three_results.png")     # tutorial 3's separate results GUI background, as tutorial_three() does not have its own subroutine
+T3_results = pygame.image.load("assets/tutorial_three_results.png")     # tutorial 3's separate results GUI background, as tutorial_three() does not have its own subroutine
 
 # car functionality regulation
 CAR_WIDTH:float = 35
 CAR_HEIGHT:float = 35
-user_car_image = pygame.image.load("user_car.png").convert_alpha()
+user_car_image = pygame.image.load("assets/user_car.png").convert_alpha()
 user_car_image = pygame.transform.scale(user_car_image, (CAR_WIDTH, CAR_HEIGHT))
 DRS_RADIUS:float = 50  
 PITSTOP_RADIUS:float = 50
@@ -273,7 +273,7 @@ def detect_track_limits(circuit,game_map,x,y,user_speed):
 
 def activate_DRS(circuit,x,y,user_speed,keys,DRS_on):
     DRS_available = False  # flag to check whether DRS can be activated
-    DRS_alert = pygame.image.load("DRS_Alert.png")
+    DRS_alert = pygame.image.load("assets/DRS_Alert.png")
 
     # In case of multiple DRS checkpoints
     distance_to_DRS_start_list = []
@@ -312,14 +312,14 @@ def initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, P
     PITSTOP_available = False   # if true, user can pit
     PITSTOP_completed = False   # future maintenance - one pitstop is required or race is invalid
     distance_to_PITLANE = math.sqrt((x - PITSTOP_checkpoint[circuit][0])**2 + (y-PITSTOP_checkpoint[circuit][1])**2)
-    PITSTOP_alert = pygame.image.load("PITSTOP_Alert.png")  # accessbility requirements
+    PITSTOP_alert = pygame.image.load("assets/PITSTOP_Alert.png")  # accessbility requirements
     
     if lap_count % 2 == 0:     # opportunity to pit isnt always possible, drivers dont do this every lap so it will show up 50% of the time
         if distance_to_PITLANE < PITSTOP_RADIUS and PITSTOP_completed == False:       
             SCREEN.blit(PITSTOP_alert, (150,570))
             PITSTOP_available = True
     
-    PITSTOP_screen = pygame.image.load("PITSTOP_GUI.png")
+    PITSTOP_screen = pygame.image.load("assets/PITSTOP_GUI.png")
     PITSTOP_screen = pygame.transform.scale(PITSTOP_screen, (920,518))         # loads pitstop GUI
 
     if PITSTOP_available == True:
@@ -352,10 +352,10 @@ def initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, P
 
 # GUI - mainmenu and dashboard fonts
 def get_font(size): 
-    return pygame.font.Font("Inlanders.otf", size)   # most of the main menu buttons will be this font
+    return pygame.font.Font("assets/Inlanders.otf", size)   # most of the main menu buttons will be this font
 
 def get_dashboard_font(size):
-    return pygame.font.Font("impact.ttf", size)      # most of dashboard interfaces will be this font
+    return pygame.font.Font("assets/impact.ttf", size)      # most of dashboard interfaces will be this font
 
 def speedometer(user_speed, position):
     SPEED_TEXT = get_dashboard_font(30).render(str(round(user_speed * 20,2)) + "mph", True, (0,0,0))
@@ -467,10 +467,10 @@ def tutorial_one(circuit):
     global all_time_score
     pygame.display.set_caption("Tutorial One")
     game_map = pygame.image.load(maps[circuit]).convert()
-    T1_toptip = pygame.image.load("tutorial_1.1.png")
-    T1_racedistance = pygame.image.load("tutorial_1.2.png")
-    T1_funfact = pygame.image.load("tutorial_1.3.png")
-    T1_results = pygame.image.load("tutorial_one_results.png")
+    T1_toptip = pygame.image.load("assets/tutorial_1.1.png")
+    T1_racedistance = pygame.image.load("assets/tutorial_1.2.png")
+    T1_funfact = pygame.image.load("assets/tutorial_1.3.png")
+    T1_results = pygame.image.load("assets/tutorial_one_results.png")
 
     user_angle = 0
     user_speed = 0
@@ -571,13 +571,13 @@ def tutorial_two(circuit):
     global all_time_score
     pygame.display.set_caption("Tutorial Two")
     game_map = pygame.image.load(maps[circuit]).convert()
-    T2_intro = pygame.image.load("tutorial_2.0.png")
-    T2_pitstop = pygame.image.load("tutorial_2.1.png")
-    T2_funfact1 = pygame.image.load("tutorial_2.2.png")
-    T2_funfact2 = pygame.image.load("tutorial_2.3.png")
-    T2_funfact3 = pygame.image.load("tutorial_2.4.png")
-    T2_drs = pygame.image.load("tutorial_2.5.png")
-    T2_results = pygame.image.load("tutorial_two_results.png")
+    T2_intro = pygame.image.load("assets/tutorial_2.0.png")
+    T2_pitstop = pygame.image.load("assets/tutorial_2.1.png")
+    T2_funfact1 = pygame.image.load("assets/tutorial_2.2.png")
+    T2_funfact2 = pygame.image.load("assets/tutorial_2.3.png")
+    T2_funfact3 = pygame.image.load("assets/tutorial_2.4.png")
+    T2_drs = pygame.image.load("assets/tutorial_2.5.png")
+    T2_results = pygame.image.load("assets/tutorial_two_results.png")
 
     user_angle = 0
     user_speed = 0
@@ -965,7 +965,7 @@ def savestats():
         SAVESTATS_BACK.changeColor(SAVESTATS_MOUSE_POS)
         SAVESTATS_BACK.update(SCREEN)
 
-        SAVESTATS_BUTTON = Button(image = pygame.image.load("Play Rect.png"), pos=(640,370),
+        SAVESTATS_BUTTON = Button(image = pygame.image.load("assets/Play Rect.png"), pos=(640,370),
                              text_input="SAVE STATS", font=get_font(50), base_color="#b68f40", hovering_color="Green")
 
         for button in [SAVESTATS_BACK, SAVESTATS_BUTTON]:
@@ -1088,15 +1088,15 @@ def main_menu(): # Main Menu Screen
         MENU_RECT = MENU_TEXT.get_rect(center=(640,100))
         SCREEN.blit(MENU_TEXT, MENU_RECT)
 
-        PLAY_BUTTON = Button(image = pygame.image.load("Play Rect.png"), pos=(640, 200),
+        PLAY_BUTTON = Button(image = pygame.image.load("assets/Play Rect.png"), pos=(640, 200),
                              text_input="PLAY", font=get_font(60), base_color="#b68f40", hovering_color="White")
-        OPTIONS_BUTTON = Button(image = pygame.image.load("Options Rect.png"), pos=(640,295),
+        OPTIONS_BUTTON = Button(image = pygame.image.load("assets/Options Rect.png"), pos=(640,295),
                              text_input="INFORMATION", font=get_font(50), base_color="#b68f40", hovering_color="White")
-        VIEWSTATS_BUTTON = Button(image = pygame.image.load("Options Rect.png"), pos=(640,485),
+        VIEWSTATS_BUTTON = Button(image = pygame.image.load("assets/Options Rect.png"), pos=(640,485),
                              text_input="VIEW STATS", font=get_font(50), base_color="#b68f40", hovering_color="White")
-        SAVESTATS_BUTTON = Button(image = pygame.image.load("Options Rect.png"), pos=(640,390),
+        SAVESTATS_BUTTON = Button(image = pygame.image.load("assets/Options Rect.png"), pos=(640,390),
                              text_input="SAVE STATS", font=get_font(50), base_color="#b68f40", hovering_color="White")
-        QUIT_BUTTON = Button(image = pygame.image.load("Play Rect.png"), pos=(640,580),
+        QUIT_BUTTON = Button(image = pygame.image.load("assets/Play Rect.png"), pos=(640,580),
                              text_input="QUIT", font=get_font(60), base_color="#b68f40", hovering_color="White")
 
 
