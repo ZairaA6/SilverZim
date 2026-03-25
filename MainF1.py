@@ -352,10 +352,10 @@ def initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, P
 
 # GUI - mainmenu and dashboard fonts
 def get_font(size): 
-    return pygame.font.Font("Inlanders.otf", size)   # most of the main menu buttons will be this font
+    return pygame.font.Font("assets/Inlanders.otf", size)   # most of the main menu buttons will be this font
 
 def get_dashboard_font(size):
-    return pygame.font.Font("impact.ttf", size)      # most of dashboard interfaces will be this font
+    return pygame.font.Font("assets/impact.ttf", size)      # most of dashboard interfaces will be this font
 
 def speedometer(user_speed, position):
     SPEED_TEXT = get_dashboard_font(30).render(str(round(user_speed * 20,2)) + "mph", True, (0,0,0))
