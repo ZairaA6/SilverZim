@@ -3,6 +3,8 @@ from ui.button import Button
 from config import *
 from domain.car import SimCar
 from persistence.records import save_data, load_records, get_user_score
+from ui.gui import get_font, get_dashboard_font, speedometer, display_tyres
+from domain.leaderboard import add_player, update_leaderboard, get_sorted_leaderboard, leaderboard_positions, clear_leaderboard
 pygame.init()
 pygame.font.init()
 
@@ -21,7 +23,6 @@ T3_results = pygame.image.load("assets/tutorial_three_results.png")     # tutori
 # car functionality regulation
 user_car_image = pygame.image.load("assets/user_car.png").convert_alpha()
 user_car_image = pygame.transform.scale(user_car_image, (CAR_WIDTH, CAR_HEIGHT))
-leaderboard_positions = {}
 current_generation:int = 0
 
 # user-car variables & constants 
@@ -187,65 +188,11 @@ def initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, P
     return user_speed, acceleration, tyre_compound, PITSTOP_screen_show
 
 
-# GUI - mainmenu and dashboard fonts
-def get_font(size): 
-    return pygame.font.Font("assets/Inlanders.otf", size)   # most of the main menu buttons will be this font
-
-def get_dashboard_font(size):
-    return pygame.font.Font("assets/impact.ttf", size)      # most of dashboard interfaces will be this font
-
-def speedometer(user_speed, position):
-    SPEED_TEXT = get_dashboard_font(30).render(str(round(user_speed * 20,2)) + "mph", True, (0,0,0))
-    SPEED_RECT = SPEED_TEXT.get_rect(center=position) #reusable
-    SCREEN.blit(SPEED_TEXT, SPEED_RECT)
-    
-def display_tyres(tyre_compound, acceleration, position):
-    if position == (1160, 205):   # tutorial 2 has slightly different GUI so this is required, if GUI changed to be more adaptable, this would be unrequired.
-        tyres_words = tyre_compound
-        acc_words = str(acceleration)
-    else:
-        tyres_words = "Tyres:"+ tyre_compound
-        acc_words = "Acc: "+ str(acceleration)
-
-    TYRES_TEXT = get_dashboard_font(20).render(tyres_words, True, (38,38,38)) #grey
-    TYRES_RECT = TYRES_TEXT.get_rect(center=position)
-    SCREEN.blit(TYRES_TEXT, TYRES_RECT)
-
-    ACC_TEXT = get_dashboard_font(20).render(acc_words, True, (38,38,38))
-    ACC_RECT = ACC_TEXT.get_rect(center=(position[0],position[1]+20))
-    SCREEN.blit(ACC_TEXT, ACC_RECT)
-
-# leaderboard
-def add_player(player_name, lap_count):
-    leaderboard_positions[player_name] = lap_count
-
-def update_player(player_name, new_lap_count):
-    if player_name in leaderboard_positions:
-        leaderboard_positions[player_name] = new_lap_count
-
-def leaderboard(cars, circuit, lap_count):  
-    for i in cars:
-        #print(i.sim_lap_count)
-        if i.sim_lap_count > 1:   # leaderboard for sim cars generated after first run through the entire circuit
-            #if i.sim_lap_count < 3:
-            if max(leaderboard_positions.values()) < (laps_to_win[circuit]+1):
-                sim_player_name = random.choice(player_names)
-                if sim_player_name not in leaderboard_positions:
-                    fake_lap_count = random.randint(1,2)
-                    add_player(sim_player_name, fake_lap_count)
-
-                if i.sim_lap_count > 7 and i.sim_lap_count < 11:
-                    fake_lap_count_add_1 = random.randint(1,2)
-                    total_fake_lap = fake_lap_count_add_1 + leaderboard_positions[sim_player_name]
-                    if (total_fake_lap) <= (laps_to_win[circuit]+1):
-                        update_player(sim_player_name, total_fake_lap)
-    # user
-    update_player(user_nickname,lap_count)
 
 def display_leaderboard():
     LEADERBD_TEXT = get_dashboard_font(20).render(" ", True, (38,38,38))
-    if leaderboard:
-        sorted_leaderboard = sorted(leaderboard_positions.items(), key = lambda x: x[1], reverse = True)
+    if update_leaderboard:
+        sorted_leaderboard = get_sorted_leaderboard()
         #print("Leaderboard: ")
         for i, (player, lap) in enumerate(sorted_leaderboard):
             #print(f"{i+1}. {player}:{lap}")
@@ -291,7 +238,7 @@ def results_summary(position_based_score, all_time_score, sorted_leaderboard, ci
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if RESULTS_BACK.checkForInput(RESULTS_MOUSE_POS):
-                    leaderboard_positions.clear()
+                    clear_leaderboard()  # clear leaderboard
                     choose_map()
         pygame.display.update()
     
@@ -345,7 +292,7 @@ def tutorial_one(circuit):
         keys = pygame.key.get_pressed()
         user_angle, user_speed, x, y = steer_car(circuit,x,y, user_angle, user_speed, acceleration, keys)
         user_speed = detect_track_limits(circuit,game_map, x, y, user_speed)
-        speedometer(user_speed, (1100,170))
+        speedometer(SCREEN,user_speed, (1100,170))
 
         # lap progression
         for i, checkpoint in enumerate(lap_checkpoints[circuit]):
@@ -458,8 +405,8 @@ def tutorial_two(circuit):
         user_speed,DRS_on = activate_DRS(circuit,x,y,user_speed,keys, DRS_on)
         user_speed, acceleration, tyre_compound, PITSTOP_screen_show = initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count)
 
-        speedometer(user_speed, (1100,170))
-        display_tyres(tyre_compound, acceleration, (1160,205))
+        speedometer(SCREEN, user_speed, (1100,170))
+        display_tyres(SCREEN,tyre_compound, acceleration, (1160,205))
 
         for i, checkpoint in enumerate(lap_checkpoints[circuit]):
             dist_to_checkpoint = math.sqrt((x - checkpoint[0])**2 + (y - checkpoint[1])**2)
@@ -587,7 +534,7 @@ def f1_map_wrapper(circuit):
                     sys.exit()
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if PLAY_BACK.checkForInput(PLAY_MOUSE_POS):
-                        leaderboard_positions.clear()
+                        clear_leaderboard()
                         cars.clear()
                         nets.clear()
                         current_generation = 0
@@ -621,8 +568,8 @@ def f1_map_wrapper(circuit):
             user_speed, acceleration, tyre_compound, PITSTOP_screen_show = initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count)
 
             # displays for dashboard
-            speedometer(user_speed,(435,630))
-            display_tyres(tyre_compound, acceleration, (70,605))
+            speedometer(SCREEN, user_speed,(435,630))
+            display_tyres(SCREEN, tyre_compound, acceleration, (70,605))
 
             # lap progression - not its own function since errors are caused if it is.
             for i, checkpoint in enumerate(lap_checkpoints[circuit]):
@@ -638,13 +585,13 @@ def f1_map_wrapper(circuit):
             SCREEN.blit(LAPS_TEXT, LAPS_RECT)
 
             # leaderboard
-            leaderboard(cars, circuit,lap_count)
+            update_leaderboard(cars, circuit, lap_count, user_nickname)
             display_leaderboard()
 
             #print(max(leaderboard_positions.values())) - USE TO TRACE LEADERBOARD_POSITIONS
             # checks for winner
             if max(leaderboard_positions.values()) == (laps_to_win[circuit] + 1):
-                sorted_leaderboard = sorted(leaderboard_positions.items(), key = lambda x: x[1], reverse = True)
+                sorted_leaderboard = get_sorted_leaderboard()
                 leaderboard_list = []               # create a list of exact same thing in sorted_leaderboard dictionary
                 for player in sorted_leaderboard:
                     leaderboard_list.append(player[0])
@@ -656,7 +603,7 @@ def f1_map_wrapper(circuit):
                     position_based_score = 0
 
                 all_time_score += position_based_score
-                leaderboard_positions.clear()
+                clear_leaderboard()
                 cars.clear()
                 nets.clear()
                 current_generation = 0
@@ -728,8 +675,8 @@ def f1_map_wrapper(circuit):
 
 def viewstats():
     pygame.display.set_caption("View Stats")
-    all_user_records = check_records()          # creates variable for all dictionaries in json file - to be used in return_user_score()
-    view_user_score = return_user_score(user_nickname, all_user_records)
+    all_user_records = load_records()          # creates variable for all dictionaries in json file - to be used in return_user_score()
+    view_user_score = get_user_score(user_nickname, all_user_records)
 
     while True:
         VIEWSTATS_MOUSE_POS = pygame.mouse.get_pos()
