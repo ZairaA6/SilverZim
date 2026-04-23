@@ -35,7 +35,7 @@ user_start = True   # used to check whether it is the first lap for user-control
 last_checkpoint:int = 1   # condition checking variable for lap progression()
 
 
-
+# display leaderboard
 def display_leaderboard():
     LEADERBD_TEXT = get_dashboard_font(20).render(" ", True, (38,38,38))
     if update_leaderboard:
@@ -48,9 +48,7 @@ def display_leaderboard():
     else:
         print("leaderboard is empty")
 
-# end of leaderboard functions
-
-
+# display results screen
 def results_summary(position_based_score, all_time_score, sorted_leaderboard, circuit):
     pygame.display.set_caption("Results")
 
@@ -93,7 +91,7 @@ def results_summary(position_based_score, all_time_score, sorted_leaderboard, ci
 
 
 
-
+# gameplay modes: Tutorial 1, 2 and 3 (with AI) and F1 Map (NEAT simulation)
 def tutorial_one(circuit):
     global all_time_score
     pygame.display.set_caption("Tutorial One")
@@ -323,9 +321,12 @@ def tutorial_two(circuit):
         clock.tick(90) # 60 fps
         pygame.display.update()
     
-
+# f1_map_wrapper
+# for tutorial 3, silverstone and other f1 tracks
+# responsible for maintaining global race state, running game loop, and managing NEAT life cycle
 def f1_map_wrapper(circuit):
-    def f1_map(genomes, config):
+    def f1_map(genomes, config): # wrapper because NEAT requires the function to take genomes and config as arguments, but we also want to pass in circuit as an argument to specify which map to run the simulation on
+        # global variables not ideal, but could be managed via RaceState dataclass, but this would require refactoring a lot of the code and functions which currently rely on global variables, so for now global variables are used to manage state across functions and game loop
         global user_angle
         global user_speed
         global user_start
@@ -343,7 +344,9 @@ def f1_map_wrapper(circuit):
 
         pygame.display.set_caption(circuit)
         current_generation += 1
-        rotated_user_car = user_car_image
+        rotated_user_car = user_car_image # rotated image updates in game loop, otherwise it resets to original orientation every new generation, which looks weird and is not ideal for user experience, so we set it as a global variable and only update it in the game loop when the angle changes, so it maintains its orientation across generations until the user changes direction again.
+
+
         game_map = pygame.image.load(maps[circuit]).convert()
 
         # this below is to navigate the issue of user_controlled car restarting after each generation in simulation
@@ -435,7 +438,9 @@ def f1_map_wrapper(circuit):
             speedometer(SCREEN, user_speed,(435,630))
             display_tyres(SCREEN, tyre_compound, acceleration, (70,605))
 
-            # lap progression - not its own function since errors are caused if it is.
+
+
+            # lap progression counter - not its own function since errors are caused if it is.
             for i, checkpoint in enumerate(lap_checkpoints[circuit]):
                 dist_to_checkpoint = math.sqrt((x - checkpoint[0])**2 + (y - checkpoint[1])**2)
                 if dist_to_checkpoint < CHECKPOINT_RADIUS and not checkpoint_flags[i]:
@@ -468,6 +473,8 @@ def f1_map_wrapper(circuit):
 
                 all_time_score += position_based_score
                 clear_leaderboard()
+
+                # restart conditions for new game or new map
                 cars.clear()
                 nets.clear()
                 current_generation = 0
@@ -475,10 +482,13 @@ def f1_map_wrapper(circuit):
                 results_summary(position_based_score, all_time_score, sorted_leaderboard, circuit)
    
             # simulation NEAT
+            
             for i, car in enumerate(cars):
-                output = nets[i].activate(car.get_data())
-                choice = output.index(max(output))
-                if choice == 0:
+                output = nets[i].activate(car.get_data())# should return an output list from neural netwrok like [0.2, 0.8, -0.1, 0.3, 0.1, 0.5]
+                choice = output.index(max(output))# get the index of the highest value in the output list, which corresponds to the action to take
+                
+                
+                if choice == 0:                     # reactove cpntrol, the networks that make better choices survivce longer and get higher fitness
                     car.sim_angle += 10 # left
                 elif choice == 1:
                     car.sim_angle -= 10 # right
@@ -531,7 +541,7 @@ def f1_map_wrapper(circuit):
             pygame.display.update()
         pass
     return f1_map
-
+# wrapper function to pass in circuit argument to the NEAT function, which requires genomes and config as arguments, but we also want to specify which map to run the simulation on, so we use a wrapper function to achieve this.
 
 
 

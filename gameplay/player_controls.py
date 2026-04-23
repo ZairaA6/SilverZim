@@ -92,7 +92,7 @@ def update_pitstop(circuit, x, y, user_speed, acceleration, keys, tyre_compound,
 
     if lap_count % 2 == 0 and distance_to_pitlane < PITSTOP_RADIUS: # opportunity to pit isnt always possible, drivers dont do this every lap so it will show up 50% of the time
         pitstop_available = True
-
+ 
     if pitstop_available and (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]):  # PITSTOP controlled by shift
         user_speed = 0
         pitstop_screen_show = True
