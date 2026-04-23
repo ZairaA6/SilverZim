@@ -1,32 +1,12 @@
 import pygame, sys, math, neat, random, json
-from button import Button
-
-# data structures
-maps = {"Silverstone":"assets/silverstone_map.png", "Monaco":"assets/monaco_map.png", "RedBullRing":"assets/redbullring_map.png", "Suzuka":"assets/suzuka_map.png","Tutorial1":"assets/tutorial_one_map.png", 
-        "Tutorial2":"assets/tutorial_two_map.png", "Tutorial3":"assets/tutorial_three_map.png"}
-starting_coords = {"Silverstone": (355,90),"Monaco":(107,207),"RedBullRing":(716,332), "Tutorial1":(372,122), "Tutorial2":(372,122), "Tutorial3":(372,122)}
-finish_line_coords = {"Silverstone": (310,50),"Monaco":(102,293),"RedBullRing":(662,381), "Tutorial3": (250,100)}
-
-lap_checkpoints = {"Silverstone": [(135,275), (321, 68)],"Monaco": [(365,160), (115, 277)], "RedBullRing":[(263,326),(676,178)], "Tutorial1":[(795,223), (259,98)], "Tutorial2":[(795,223), (259,98)],
-                     "Tutorial3":[(795,223), (259,98)]}
-DRS_checkpoints = {"Monaco": [(843, 360), (325, 327)], "Silverstone": [(565, 393), (726, 174), (435,480), (105,245)], "RedBullRing": [(500, 467), (207, 295), (113,194), (469,84)],
-                    "Tutorial2": [(315,415), (130, 210)], "Tutorial3": [(315,415), (130, 210)]}
-PITSTOP_checkpoint = {"Silverstone": (807,110), "Monaco": (162, 329),"RedBullRing":(784,142), "Tutorial2": (793, 208),  "Tutorial3": (793, 208)}
-laps_to_win = {"Monaco": 14, "Silverstone": 10, "RedBullRing":13,"Suzuka": 11, "Tutorial1": 8, "Tutorial2": 8, "Tutorial3":8}
-
-steer_text = {"Silverstone":[(800,600),(840,575),(880,600),(840,630)], "Monaco":[(800,600),(840,575),(880,600),(840,630)], "RedBullRing":[(800,600),(840,575),(880,600),(840,630)], 
-                "Tutorial1": [(1060,330),(1100,305),(1140,330),(1100,360)], "Tutorial2": [(1060,330),(1100,305),(1140,330),(1100,360)], "Tutorial3": [(800,600),(840,575),(880,600),(840,630)]}
-point_allocation = {"1": 25,"2":18,"3": 15,"4":12,"5":10,"6":8,"7":6,"8":4,"9":2,"10":1}
-player_names = ["formula_one_pro", "ai_24","silverZim11","simulated_player22","hamilton_8","sebastian_vettel","lewis_hamilton","leclerc_ai_16","charles_leclerc","lando_norris","vertappen_ai",
-                "8x_world_champ", "michael_shumacher", "artyon_senna","senna_ai", "susie_wolff", "martin_brundle","jenson_button","natalie_pinkham"]
-coloured_cars = ["assets/car1.png", "assets/car2.png","assets/car3.png","assets/car4.png","assets/car5.png","assets/car6.png"]
-
+from ui.button import Button
+from config import *
+from domain.car import SimCar
+from persistence.records import save_data, load_records, get_user_score
 pygame.init()
 pygame.font.init()
 
 # screen variables - map regulation
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 700
 SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT),  pygame.RESIZABLE)
 BG = pygame.image.load("assets/final_background.png")
 OPTIONS = pygame.image.load("assets/info_screen.png")  # info screen
@@ -39,158 +19,15 @@ T3_intro = pygame.transform.scale(T3_intro,(200, 350))
 T3_results = pygame.image.load("assets/tutorial_three_results.png")     # tutorial 3's separate results GUI background, as tutorial_three() does not have its own subroutine
 
 # car functionality regulation
-CAR_WIDTH:float = 35
-CAR_HEIGHT:float = 35
 user_car_image = pygame.image.load("assets/user_car.png").convert_alpha()
 user_car_image = pygame.transform.scale(user_car_image, (CAR_WIDTH, CAR_HEIGHT))
-DRS_RADIUS:float = 50  
-PITSTOP_RADIUS:float = 50
-CHECKPOINT_RADIUS:float = 30
 leaderboard_positions = {}
-BORDER_COLOR = (255,255,255,255)
 current_generation:int = 0
 
-# user-car variables & constants
-user_angle:float = 0
-user_speed:float = 0
-acceleration:float = 0.15    # acceleration is not a CONSTANT  
-DECELERATION:float = 0.05
-TRACK_LIMITS_DECELERATION:float = 0.8     
-MAX_VELOCITY:int = 10 
+# user-car variables & constants 
 user_start = True   # used to check whether it is the first lap for user-controlled car, keep its separate from simulated cars
 last_checkpoint:int = 1   # condition checking variable for lap progression()
 
-class SimCar():
-    def  __init__(self, circuit):
-        # Load Random coloured car file for AI_simulation
-        random_car = random.choice(coloured_cars)
-
-        # Load the image of each simulated car
-        self.sim_car_image = pygame.image.load(random_car).convert() 
-        self.sim_car_image = pygame.transform.scale(self.sim_car_image, (CAR_WIDTH, CAR_HEIGHT))
-        
-        # Rotated version of simulated car continously updated
-        self.rotated_sim_car = self.sim_car_image 
-
-        self.sim_position = list(starting_coords[circuit]) # Starting Position depending on Circuit
-        self.sim_angle = 0
-        self.sim_speed = 0
-        self.sim_center = [self.sim_position[0] + CAR_WIDTH / 2, self.sim_position[1] + CAR_HEIGHT / 2] 
-        self.sim_speed_set = False # Flag For Default Speed later on
-
-        self.radars = [] # List For Radar lines
-        self.alive = True # Boolean To Check If Sim Car has Crashed
-        self.sim_distance = 0 # distance driven - used to calculate fitness using NEAT
-
-        self.sim_lap_count = 1 # for Leaderboard
-
-    def draw(self, SCREEN):
-        SCREEN.blit(self.rotated_sim_car, self.sim_position)
-    
-    def __check_track_limits(self, game_map): 
-        self.alive = True
-        for point in self.corners:
-            #if any corner touches the border colour, there is a crash
-            #print(point, ":",game_map.get_at((int(point[0]), int(point[1])))) tracing
-            if game_map.get_at((int(point[0]), int(point[1]))) == BORDER_COLOR:
-                self.alive = False
-                break 
-    
-    def __check_radar(self, degree, game_map): 
-        radar_length = 0
-        # continously update simX and simY to find point where radar line meets track limits aka border colour
-        simX = int(self.sim_center[0] + math.cos(math.radians(360 - (self.sim_angle + degree))) * radar_length)
-        simY = int(self.sim_center[1] + math.sin(math.radians(360 - (self.sim_angle + degree))) * radar_length)
-        
-        while not game_map.get_at ((simX,simY)) == BORDER_COLOR: 
-            radar_length += 1
-            simX = int(self.sim_center[0] + math.cos(math.radians(360 - (self.sim_angle + degree))) * radar_length)
-            simY = int(self.sim_center[1] + math.sin(math.radians(360 - (self.sim_angle + degree))) * radar_length)
-
-        # calculate radar line length aka distance to border, append to radars
-        dist_to_border = int(math.sqrt((simX - self.sim_center[0])** 2 + (simY - self.sim_center[1])** 2))
-        self.radars.append([(simX, simY), dist_to_border])
-
-    def update_sim_car(self, circuit, game_map):     # continously updated in f1_map game loop as the sim car moves
-        # sets speed to 20 for first time for sim car
-        if not self.sim_speed_set:
-            self.sim_speed = 20
-            self.sim_speed_set = True
-
-        self.rotated_sim_car = self.__rotate_center(self.sim_car_image, self.sim_angle)
-
-        # update x position based on sim_speed output
-        self.sim_position[0] += self.sim_speed * math.cos(math.radians(360 - self.sim_angle))
-        self.sim_position[0] = max(self.sim_position[0], 20)
-        self.sim_position[0] = min(self.sim_position[0], SCREEN_WIDTH - 120)
-
-        # same for move into y position
-        self.sim_position[1] += self.sim_speed * math.sin(math.radians(360 - self.sim_angle)) 
-        self.sim_position[1] = max(self.sim_position[1], 20)
-        self.sim_position[1] = min(self.sim_position[1], SCREEN_WIDTH - 120)
-
-        # calculate new center
-        self.sim_center = [int(self.sim_position[0]) + CAR_WIDTH / 2, int(self.sim_position[1]) + CAR_HEIGHT / 2 ]
-
-        # increase distance travelled for reward
-        self.sim_distance += self.sim_speed
-
-        # for leaderboard
-        startX = finish_line_coords[circuit][0]
-        startY = finish_line_coords[circuit][1]
-        dist_to_start = int(math.sqrt((startX - self.sim_center[0])** 2 + (startY - self.sim_center[1])** 2))
-        if dist_to_start < CHECKPOINT_RADIUS:
-            self.sim_lap_count += 1
-
-        # calculate corners
-        self.corners = self.__update_corners()
-
-        # check collisions with track limits and clear radars next update
-        self.__check_track_limits(game_map)
-        self.radars.clear()
-
-        # from -90 to 120 with 45o steps , check radar
-        for d in range(-90, 120, 45):
-            self.__check_radar(d, game_map)
-
-    def __calculate_corner(self, angle_offset, half_length):
-        # create corners to be added to self.corners
-        cornerX = self.sim_center[0] + math.cos(math.radians(360-(self.sim_angle + angle_offset))) * half_length
-        cornerY = self.sim_center[1] + math.sin(math.radians(360-(self.sim_angle + angle_offset))) * half_length
-        return [cornerX, cornerY]
-
-    def __update_corners(self):
-        half_length = 0.5 * CAR_WIDTH # (half car length)
-        angle_offsets = [30, 150, 210, 330] # can change in future
-        self.corners = [self.__calculate_corner(offset,half_length) for offset in angle_offsets]
-        return self.corners
-
-    def get_data(self):
-        # get distances to border, create return values for NEAT function
-        radars = self.radars
-        return_values = [0,0,0,0,0]
-        for i, radar in enumerate(radars):
-            return_values[i] = int(radar[1] /30)
-        
-        return return_values
-    
-    def is_alive(self):
-        # checks if alive
-        return self.alive
-    
-    def get_reward(self):
-        # ai!
-        # calculate reward, return self.distance /50
-        return self.sim_distance / (CAR_WIDTH /2)
-    
-    def __rotate_center(self, image, sim_angle):
-        # rotate rectangle image of the sim car
-        rectangle = image.get_rect()
-        rotated_image = pygame.transform.rotate(image,sim_angle)
-        rotated_rectangle = rectangle.copy()
-        rotated_rectangle.center = rotated_image.get_rect().center
-        rotated_image = rotated_image.subsurface(rotated_rectangle).copy()
-        return rotated_image
 
 # user controlled car features
 def steer_car(circuit,x,y,user_angle,user_speed,acceleration,keys):
@@ -887,29 +724,7 @@ def f1_map_wrapper(circuit):
 
 
 
-def save_data(nickname, all_time_saved):
-    data = {'nickname': nickname, 'all time score': all_time_saved}  # creates a data entry for the json file
 
-    with open('finalnearecords.json', 'a') as file:                  # saves data entry to json file
-       json.dump(data, file)
-       file.write('\n')
-
-def check_records():
-    try:
-        with open('finalnearecords.json', 'r') as file:             
-           lines = reversed(file.readlines())                       # reversed() is used so that most recent update for the user_nickname can be read first
-           user_records = [json.loads(line) for line in lines]
-           return user_records
-    except FileNotFoundError:                                       # vaidating for errors
-        return []
-
-def return_user_score(nickname, all_user_records):
-    for record in all_user_records:
-        if record['nickname'] == nickname:
-                view_user_score = record['all time score']
-                return view_user_score
-    print(f"No score found for the nickname: {nickname}")    # returning info if record does not contain information about the user-entered nickname - does not leave user confused
-    return None
 
 def viewstats():
     pygame.display.set_caption("View Stats")
@@ -1110,7 +925,7 @@ def main_menu(): # Main Menu Screen
                 sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if PLAY_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    options()
+                    choose_map() 
                 if OPTIONS_BUTTON.checkForInput(MENU_MOUSE_POS):
                     options()
                 if VIEWSTATS_BUTTON.checkForInput(MENU_MOUSE_POS):
@@ -1130,12 +945,13 @@ if __name__ == "__main__":
     user_nickname = str(input("Please enter a nickname to continue (Must be under 15 charcters): "))
     while len(user_nickname) > 15 or len(user_nickname) ==0:  #validation
         user_nickname = str(input("Invalid: Please enter a nickname under 15 characters: "))
-    print("USERNAME CREATION SUCCESSFUL \n beep beep silver zim loading...")
+    print("USERNAME SELECTION SUCCESSFUL \n beep beep silver zim loading...")
 
-    all_user_records = check_records()                              # creates variable for all dictionaries in json file - to be used in return_user_score()
-    if return_user_score(user_nickname, all_user_records) == None:
+    all_user_records = load_records()                              # creates variable for all dictionaries in json file - to be used in return_user_score()
+    if get_user_score(user_nickname, all_user_records) is None:
+        print(f"No score found for the nickname: {user_nickname}")    # returning info if record does not contain information about the user-entered nickname - does not leave user confused
         all_time_score = 100
     else:
-        all_time_score = return_user_score(user_nickname, all_user_records)
+        all_time_score = get_user_score(user_nickname, all_user_records)
 
     main_menu()
