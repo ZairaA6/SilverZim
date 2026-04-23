@@ -3,8 +3,10 @@ from ui.button import Button
 from config import *
 from domain.car import SimCar
 from persistence.records import save_data, load_records, get_user_score
-from ui.gui import get_font, get_dashboard_font, speedometer, display_tyres
+from ui.dashboard import get_font, get_dashboard_font, speedometer, display_tyres, draw_controls, draw_track_limits_warning, draw_drs_alert, draw_pitstop_alert, draw_pitstop_screen
+from ui.screens import viewstats, savestats
 from domain.leaderboard import add_player, update_leaderboard, get_sorted_leaderboard, leaderboard_positions, clear_leaderboard
+from gameplay.player_controls import apply_track_limits, update_player_movement, apply_track_limits, update_DRS, update_pitstop
 pygame.init()
 pygame.font.init()
 
@@ -19,7 +21,10 @@ RESULTS_SCREEN = pygame.image.load("assets/results_screen.png")
 T3_intro = pygame.image.load("assets/tutorial_3.0.png")
 T3_intro = pygame.transform.scale(T3_intro,(200, 350))
 T3_results = pygame.image.load("assets/tutorial_three_results.png")     # tutorial 3's separate results GUI background, as tutorial_three() does not have its own subroutine
-
+DRS_ALERT_IMAGE = pygame.image.load("assets/DRS_Alert.png")
+PITSTOP_ALERT_IMAGE = pygame.image.load("assets/PITSTOP_Alert.png")  
+PITSTOP_SCREEN_IMAGE = pygame.image.load("assets/PITSTOP_GUI.png")  
+    
 # car functionality regulation
 user_car_image = pygame.image.load("assets/user_car.png").convert_alpha()
 user_car_image = pygame.transform.scale(user_car_image, (CAR_WIDTH, CAR_HEIGHT))
@@ -28,164 +33,6 @@ current_generation:int = 0
 # user-car variables & constants 
 user_start = True   # used to check whether it is the first lap for user-controlled car, keep its separate from simulated cars
 last_checkpoint:int = 1   # condition checking variable for lap progression()
-
-
-# user controlled car features
-def steer_car(circuit,x,y,user_angle,user_speed,acceleration,keys):
-    steer_text_position = steer_text[circuit]
-
-    L_TEXT = get_dashboard_font(30).render("L", True, (38,38,38))
-    L_RECT = L_TEXT.get_rect(center=steer_text_position[0])
-    SCREEN.blit(L_TEXT, L_RECT)
-
-    GAS_TEXT = get_dashboard_font(25).render("GAS", True, (38,38,38))
-    GAS_RECT = GAS_TEXT.get_rect(center=steer_text_position[1])
-    SCREEN.blit(GAS_TEXT, GAS_RECT)
-
-    R_TEXT = get_dashboard_font(30).render("R", True, (38,38,38))
-    R_RECT = R_TEXT.get_rect(center=steer_text_position[2])
-    SCREEN.blit(R_TEXT, R_RECT)
-
-    BREAK_TEXT = get_dashboard_font(25).render("BRAKE", True, (38,38,38))
-    BREAK_RECT = BREAK_TEXT.get_rect(center=steer_text_position[3])
-    SCREEN.blit(BREAK_TEXT, BREAK_RECT)
-
-    if keys[pygame.K_LEFT] or keys[pygame.K_a]: 
-         
-        user_angle += 3
-        L_TEXT = get_dashboard_font(30).render("L", True, (252,2,4))
-        SCREEN.blit(L_TEXT, L_RECT)
-
-        
-    if keys[pygame.K_RIGHT]or keys[pygame.K_d]: 
-    
-        user_angle -= 3
-        R_TEXT = get_dashboard_font(30).render("R", True, (252,2,4))
-        SCREEN.blit(R_TEXT, R_RECT)
-   
-    if keys[pygame.K_UP] or keys[pygame.K_w]: 
-        if user_speed < MAX_VELOCITY:
-            user_speed += acceleration
-        
-        GAS_TEXT = get_dashboard_font(25).render("GAS", True, (252,2,4))
-        SCREEN.blit(GAS_TEXT, GAS_RECT)
-
-    if keys[pygame.K_DOWN] or keys[pygame.K_s]: 
-        if user_speed > 0:
-            user_speed -= DECELERATION
-        if user_speed < 0:
-            user_speed = 0
-        BREAK_TEXT = get_dashboard_font(25).render("BRAKE", True, (252,2,4))
-        SCREEN.blit(BREAK_TEXT, BREAK_RECT)
-
-    # section below: user_controlled_car cannot escape the game_map
-    # x & y denotes user x and y
-    half_car_width = CAR_WIDTH / 2   # half car_width or car_height as position is denoted by centre of car
-    half_car_height = CAR_HEIGHT / 2
-
-    x = max(x, 23 + half_car_width)
-    x = min(x, 943 - half_car_width)
-    y = max(y, 25 + half_car_height)
-    y = min(y, 535 - half_car_height)
-
-    x += user_speed * math.cos(math.radians(user_angle))
-    y -= user_speed * math.sin(math.radians(user_angle))
-
-    return user_angle,user_speed,x,y
-
-def detect_track_limits(circuit,game_map,x,y,user_speed):
-
-    TRACKLIMITS_TEXT = get_dashboard_font(15).render("track limits!", True, (252,4,2))
-    TRACKLIMITS_RECT = TRACKLIMITS_TEXT.get_rect(center=(435,660))
-    if circuit == "Tutorial1":
-        TRACKLIMITS_RECT = TRACKLIMITS_TEXT.get_rect(center=(1100,200))
-
-    if game_map.get_at ((int(x),int(y))) == BORDER_COLOR:
-        SCREEN.blit(TRACKLIMITS_TEXT, TRACKLIMITS_RECT)
-        if user_speed > 0:
-            user_speed = user_speed * TRACK_LIMITS_DECELERATION
-        if user_speed < 0:
-            user_speed = 0
-    
-    return user_speed
-
-def activate_DRS(circuit,x,y,user_speed,keys,DRS_on):
-    DRS_available = False  # flag to check whether DRS can be activated
-    DRS_alert = pygame.image.load("assets/DRS_Alert.png")
-
-    # In case of multiple DRS checkpoints
-    distance_to_DRS_start_list = []
-    distance_to_DRS_end_list = []
-    
-    # For DRS starts, it starts at 0 as the even indexed items in DRS_checkpoints are the starting positions of DRS zones ( for loop with STEP 2 )
-    for i in range(0,len(DRS_checkpoints[circuit]),2):
-        distance_to_DRS_start = math.sqrt((x - DRS_checkpoints[circuit][i][0])**2 + (y-DRS_checkpoints[circuit][i][1])**2)
-        distance_to_DRS_start_list.append(round(distance_to_DRS_start,2))
-
-    # For DRS end, it starts at 1 as the odd indexed items in DRS_checkpoints are the ending positions of DRS zones, ( for loop with STEP 2 )
-    for i in range(1,len(DRS_checkpoints[circuit]),2):
-        distance_to_DRS_end = math.sqrt((x - DRS_checkpoints[circuit][i][0])**2 + (y-DRS_checkpoints[circuit][i][1])**2)
-        distance_to_DRS_end_list.append(round(distance_to_DRS_end,2))
-
-    # Check if DRS conditions have been met at nearest checkpoint to car & Activate
-    if min(distance_to_DRS_start_list) < DRS_RADIUS:        
-        SCREEN.blit(DRS_alert,(150,570))
-        DRS_available = True
-
-    elif min(distance_to_DRS_end_list) < DRS_RADIUS and DRS_on == True:
-        user_speed = 2
-        DRS_available = False
-        DRS_on = False
-
-    if DRS_available == True:
-        if keys[pygame.K_RETURN] or keys[pygame.K_SPACE]:
-            DRS_on = True
-            #temp = vel
-            user_speed = 8
-        # could refine selection statement to see if any AI cars are also within the DRS radius and then you return that
-    
-    return user_speed, DRS_on
-
-def initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count):  
-    PITSTOP_available = False   # if true, user can pit
-    PITSTOP_completed = False   # future maintenance - one pitstop is required or race is invalid
-    distance_to_PITLANE = math.sqrt((x - PITSTOP_checkpoint[circuit][0])**2 + (y-PITSTOP_checkpoint[circuit][1])**2)
-    PITSTOP_alert = pygame.image.load("assets/PITSTOP_Alert.png")  # accessbility requirements
-    
-    if lap_count % 2 == 0:     # opportunity to pit isnt always possible, drivers dont do this every lap so it will show up 50% of the time
-        if distance_to_PITLANE < PITSTOP_RADIUS and PITSTOP_completed == False:       
-            SCREEN.blit(PITSTOP_alert, (150,570))
-            PITSTOP_available = True
-    
-    PITSTOP_screen = pygame.image.load("assets/PITSTOP_GUI.png")
-    PITSTOP_screen = pygame.transform.scale(PITSTOP_screen, (920,518))         # loads pitstop GUI
-
-    if PITSTOP_available == True:
-        if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:                   # PITSTOP controlled by shift
-            user_speed = 0
-            PITSTOP_screen_show = True
-
-    if PITSTOP_screen_show == True:
-        SCREEN.blit(PITSTOP_screen, (21,20))                                # displays pitstop GUI
-        if keys[pygame.K_1]:
-            acceleration = 0.3              # SOFTS: 1.3x faster
-            PITSTOP_screen_show = False
-            PITSTOP_completed = True
-            tyre_compound = "Soft"
-        elif keys[pygame.K_2]:
-            acceleration = 0.15            # MEDIUMS: 1.15x faster
-            PITSTOP_screen_show = False
-            PITSTOP_completed = True
-            tyre_compound = "Medium"
-        elif keys[pygame.K_3]:
-            acceleration = 0.1             # HARDS: 1.1x faster
-            PITSTOP_screen_show = False
-            PITSTOP_completed = True        
-            tyre_compound = "Hard"        # returned - for display tyres parameter
-        elif keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
-            PITSTOP_screen_show = False
-        
-    return user_speed, acceleration, tyre_compound, PITSTOP_screen_show
 
 
 
@@ -290,8 +137,12 @@ def tutorial_one(circuit):
         T1_BACK.update(SCREEN)
 
         keys = pygame.key.get_pressed()
-        user_angle, user_speed, x, y = steer_car(circuit,x,y, user_angle, user_speed, acceleration, keys)
-        user_speed = detect_track_limits(circuit,game_map, x, y, user_speed)
+        # user controls & movement
+        user_angle, user_speed, x, y, controls= update_player_movement(x,y, user_angle, user_speed, acceleration, keys)
+        draw_controls(SCREEN, circuit, controls)
+        # track limits
+        user_speed,track_limits_hit = apply_track_limits(game_map, x, y, user_speed)
+        draw_track_limits_warning(SCREEN, circuit, track_limits_hit)
         speedometer(SCREEN,user_speed, (1100,170))
 
         # lap progression
@@ -400,11 +251,18 @@ def tutorial_two(circuit):
         T2_BACK.update(SCREEN)
 
         keys = pygame.key.get_pressed()
-        user_angle,user_speed, x, y = steer_car(circuit,x,y, user_angle, user_speed, acceleration, keys)
-        user_speed = detect_track_limits(circuit,game_map, x, y, user_speed)
-        user_speed,DRS_on = activate_DRS(circuit,x,y,user_speed,keys, DRS_on)
-        user_speed, acceleration, tyre_compound, PITSTOP_screen_show = initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count)
-
+        user_angle, user_speed, x, y, controls= update_player_movement(x,y, user_angle, user_speed, acceleration, keys)
+        draw_controls(SCREEN, circuit, controls)
+        user_speed,track_limits_hit = apply_track_limits(game_map, x, y, user_speed)
+        draw_track_limits_warning(SCREEN, circuit, track_limits_hit)
+        # drs
+        user_speed, DRS_on, DRS_available = update_DRS(circuit, x, y, user_speed, keys, DRS_on)
+        draw_drs_alert(SCREEN, DRS_available, DRS_ALERT_IMAGE)
+        # pitstop
+        user_speed, acceleration, tyre_compound, PITSTOP_screen_show, pitstop_available = update_pitstop(circuit, x, y, user_speed, acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count)
+        draw_pitstop_alert(SCREEN, pitstop_available, PITSTOP_ALERT_IMAGE)
+        draw_pitstop_screen(SCREEN, PITSTOP_screen_show, PITSTOP_SCREEN_IMAGE)
+        
         speedometer(SCREEN, user_speed, (1100,170))
         display_tyres(SCREEN,tyre_compound, acceleration, (1160,205))
 
@@ -562,11 +420,17 @@ def f1_map_wrapper(circuit):
 
             # user-centred features
             keys = pygame.key.get_pressed()
-            user_angle,user_speed, x, y = steer_car(circuit,x,y, user_angle, user_speed, acceleration, keys)
-            user_speed = detect_track_limits(circuit,game_map, x, y, user_speed)
-            user_speed,DRS_on = activate_DRS(circuit,x,y,user_speed,keys, DRS_on)
-            user_speed, acceleration, tyre_compound, PITSTOP_screen_show = initiate_PITSTOP(circuit,x,y,user_speed,acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count)
-
+            user_angle, user_speed, x, y, controls= update_player_movement(x,y, user_angle, user_speed, acceleration, keys)
+            draw_controls(SCREEN, circuit, controls)
+            user_speed,track_limits_hit = apply_track_limits(game_map, x, y, user_speed)
+            draw_track_limits_warning(SCREEN, circuit, track_limits_hit)
+            # drs
+            user_speed, DRS_on, DRS_available = update_DRS(circuit, x, y, user_speed, keys, DRS_on)
+            draw_drs_alert(SCREEN, DRS_available, DRS_ALERT_IMAGE)
+            # pitstop
+            user_speed, acceleration, tyre_compound, PITSTOP_screen_show, pitstop_available = update_pitstop(circuit, x, y, user_speed, acceleration, keys, tyre_compound, PITSTOP_screen_show, lap_count)
+            draw_pitstop_alert(SCREEN, pitstop_available, PITSTOP_ALERT_IMAGE)
+            draw_pitstop_screen(SCREEN, PITSTOP_screen_show, PITSTOP_SCREEN_IMAGE)
             # displays for dashboard
             speedometer(SCREEN, user_speed,(435,630))
             display_tyres(SCREEN, tyre_compound, acceleration, (70,605))
@@ -673,84 +537,10 @@ def f1_map_wrapper(circuit):
 
 
 
-def viewstats():
-    pygame.display.set_caption("View Stats")
-    all_user_records = load_records()          # creates variable for all dictionaries in json file - to be used in return_user_score()
-    view_user_score = get_user_score(user_nickname, all_user_records)
-
-    while True:
-        VIEWSTATS_MOUSE_POS = pygame.mouse.get_pos()
-        SCREEN.blit(STATSBG, (0,0))
-
-        VIEWSTATS_TEXT = get_font(50).render("VIEW STATS", True, "White")   #title 
-        VIEWSTATS_RECT = VIEWSTATS_TEXT.get_rect(center = (640, 240))
-        SCREEN.blit(VIEWSTATS_TEXT, VIEWSTATS_RECT)
-
-        VIEWSTATS_TEXT = get_font(18).render("Make sure to SAVE STATS in the main menu before you view stats.", True, "White")  #view stats extra info
-        VIEWSTATS_RECT = VIEWSTATS_TEXT.get_rect(center = (640, 280))
-        SCREEN.blit(VIEWSTATS_TEXT, VIEWSTATS_RECT)
-
-        VIEWSTATS_BACK = Button(image=None, pos = (200, 200),
-                           text_input="<- BACK", font=get_font(25), base_color = "White", hovering_color = "Green")   #back button
-        VIEWSTATS_BACK.changeColor(VIEWSTATS_MOUSE_POS)
-        VIEWSTATS_BACK.update(SCREEN)
-
-        PLAYER_TEXT = get_dashboard_font(45).render("Nickname: "+user_nickname, True, "White")    #print user nicknaname
-        PLAYER_RECT = PLAYER_TEXT.get_rect(center = (640, 360))
-        SCREEN.blit(PLAYER_TEXT, PLAYER_RECT)
-
-        SCORE_TEXT = get_dashboard_font(45).render("All Time Score: "+ str(view_user_score), True, "White")  # print user all time score
-        SCORE_RECT = SCORE_TEXT.get_rect(center = (640, 410))
-        SCREEN.blit(SCORE_TEXT, SCORE_RECT)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if VIEWSTATS_BACK.checkForInput(VIEWSTATS_MOUSE_POS):  #return to main menu if back button pressed
-                    main_menu()
-
-        pygame.display.update()
-
-def savestats():
-    pygame.display.set_caption("Save Stats")
-    while True:
-        SAVESTATS_MOUSE_POS = pygame.mouse.get_pos()
-        SCREEN.blit(STATSBG, (0,0))
-        SAVESTATS_TEXT = get_font(25).render("SAVE STATS: Press the button below & press Back!", True, "white")
-        SAVESTATS_RECT = SAVESTATS_TEXT.get_rect(center = (640, 280))
-        SCREEN.blit(SAVESTATS_TEXT, SAVESTATS_RECT)
-
-        SAVESTATS_BACK = Button(image=None, pos = (200, 200),
-                           text_input="<- BACK", font=get_font(30), base_color = "white", hovering_color = "Green")
-        SAVESTATS_BACK.changeColor(SAVESTATS_MOUSE_POS)
-        SAVESTATS_BACK.update(SCREEN)
-
-        SAVESTATS_BUTTON = Button(image = pygame.image.load("assets/Play Rect.png"), pos=(640,370),
-                             text_input="SAVE STATS", font=get_font(50), base_color="#b68f40", hovering_color="Green")
-
-        for button in [SAVESTATS_BACK, SAVESTATS_BUTTON]:
-            button.changeColor(SAVESTATS_MOUSE_POS)
-            button.update(SCREEN)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if SAVESTATS_BACK.checkForInput(SAVESTATS_MOUSE_POS):
-                    main_menu()
-                if SAVESTATS_BUTTON.checkForInput(SAVESTATS_MOUSE_POS):  # data saved here
-                    save_data(user_nickname, all_time_score)   
-          
-        pygame.display.update()
-
-
 
 def choose_map():
     pygame.display.set_caption("Choose Map")
-    config_path = "./config.txt"
+    config_path = "./neat_config.txt"
     config = neat.config.Config(neat.DefaultGenome,
                                 neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet,
@@ -876,9 +666,9 @@ def main_menu(): # Main Menu Screen
                 if OPTIONS_BUTTON.checkForInput(MENU_MOUSE_POS):
                     options()
                 if VIEWSTATS_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    viewstats()
+                    viewstats(SCREEN, STATSBG, user_nickname, main_menu)
                 if SAVESTATS_BUTTON.checkForInput(MENU_MOUSE_POS):
-                    savestats()    
+                    savestats(SCREEN, STATSBG, user_nickname, all_time_score, main_menu)
                 if QUIT_BUTTON.checkForInput(MENU_MOUSE_POS):
                     pygame.quit()
                     sys.exit()
