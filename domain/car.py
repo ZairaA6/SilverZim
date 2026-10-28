@@ -90,7 +90,7 @@ class SimCar():
         self.__check_track_limits(game_map)
         self.radars.clear()
 
-        # from -90 to 120 with 45o steps , check radar
+        # from -90 to 120 with 45 degree steps , check radar
         for d in range(-90, 120, 45):
             self.__check_radar(d, game_map)
 
@@ -120,7 +120,6 @@ class SimCar():
         return self.alive
     
     def get_reward(self):
-        # ai!
         # calculate reward, return self.distance /50
         return self.sim_distance / (CAR_WIDTH /2)
     

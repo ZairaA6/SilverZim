@@ -57,6 +57,7 @@ def update_DRS(circuit, x, y, user_speed, keys, DRS_on):
     distance_to_DRS_start_list = []
     distance_to_DRS_end_list = []
 
+    # DRS_checkpoints alternates: even indices are zone starts, odd are zone ends
     for i in range(0, len(DRS_checkpoints[circuit]), 2):
         dist = math.sqrt((x - DRS_checkpoints[circuit][i][0])**2 + (y - DRS_checkpoints[circuit][i][1])**2)
         distance_to_DRS_start_list.append(dist)
@@ -76,7 +77,6 @@ def update_DRS(circuit, x, y, user_speed, keys, DRS_on):
         user_speed = 8
         # could refine selection statement to see if any AI cars are also within the DRS radius and then you return that
     
-
     return user_speed, DRS_on, DRS_available
 
 
