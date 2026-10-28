@@ -547,7 +547,7 @@ def f1_map_wrapper(circuit):
 
 
 
-
+# screens 
 def choose_map():
     pygame.display.set_caption("Choose Map")
     config_path = "./neat_config.txt"
